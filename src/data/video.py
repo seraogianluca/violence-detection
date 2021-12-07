@@ -1,8 +1,11 @@
 import os
+from numpy.random.mtrand import sample
 import torch
+import numpy as np
 
 from torch import Tensor
 from typing import Callable, Optional, Tuple
+from torch._C import dtype
 from torchvision.io import read_video
 from torchvision.datasets.folder import make_dataset
 from torchvision.datasets import VisionDataset
@@ -75,6 +78,7 @@ class VideoDataset(VisionDataset):
         frames, _, _ = read_video(path_to_video)
 
         # transform frames into batch of images format
+        # useful to reuse transformations on images
         # batch of images -> Tensor[B, C, H, W]
         # B batch size, C channels
         video = torch.permute(frames, (0, 3, 1, 2))
@@ -93,6 +97,43 @@ class VideoDataset(VisionDataset):
 
         return video, video_cls
 
+class SpatioTemporalDataset(VideoDataset):
+    def __init__(
+        self,
+        root: str,
+        transforms: Optional[Callable] = None,
+        extensions: Tuple[str, ...] = ('.avi', '.mp4'),
+        num_clips: int = 16
+        ) -> None:
+
+        super().__init__(root, transforms, extensions)
+        self.num_clips = num_clips
+
+    def _sample_frames(
+        self, 
+        video: Tensor) -> Tensor:
+        # divide a video into num_clip buckets, uniform sampling from each bucket.
+        # sort of segment based sampling
+        # video tensor is TxCxHxW
+        # TODO: sampling for validation
+        num_frames = video.shape[0]
+
+        if self.num_clips > num_frames:
+            raise ValueError('num_clips should be lower than frames in video')
+        
+        average_duration = video.shape[0] // self.num_clips
+        offsets = np.multiply(list(range(self.num_clips)), average_duration) + np.random.randint(average_duration, size=self.num_clips)
+
+        return torch.index_select(video, 0, torch.tensor(offsets, dtype=torch.int32))
+
+    def __getitem__(
+        self, 
+        index: int) -> Tuple[Tensor, int]:
+        video, label = super().__getitem__(index)
+        sampled_video = self._sample_frames(video)
+
+        return sampled_video, label
+
 if __name__ == '__main__':
     import torchvision.transforms as T
     import utils as U
@@ -101,9 +142,10 @@ if __name__ == '__main__':
         T.RandomResizedCrop((112, 112)),
         T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
-    dataset = VideoDataset(
+    dataset = SpatioTemporalDataset(
         '/mnt/d/serao/archive/Real Life Violence Dataset',
-        transforms=pipeline
+        transforms=pipeline,
+        num_clips=16
     )
 
     print(f'Dataset size: {len(dataset)}')
