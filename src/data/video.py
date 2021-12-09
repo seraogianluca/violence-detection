@@ -56,11 +56,10 @@ class VideoDataset(VisionDataset):
         class_to_index = {cls_name: i for i, cls_name in enumerate(self.classes)}
         # list(tuple(str, int))
         self.videos_index = make_dataset(root, class_to_index, extensions, is_valid_file=None)
-
-        self.targets = [video[1] for video in self.videos_index]
     
     def targets(self):
-        return self.targets
+        targets = [video[1] for video in self.videos_index]
+        return targets
 
     def __len__(self):
         return len(self.videos_index)
@@ -81,21 +80,18 @@ class VideoDataset(VisionDataset):
         # useful to reuse transformations on images
         # batch of images -> Tensor[B, C, H, W]
         # B batch size, C channels
-        video = torch.permute(frames, (0, 3, 1, 2))
+        frames = torch.permute(frames, (0, 3, 1, 2)).type(torch.float32)
 
         # cast uint8 to float32
         # TODO: check carefully how to do this cast
         # torchvision.transforms.ToTensor
-        video = video.type(torch.float32)
 
         if self.transforms is not None:
             # consider the entire video as batch of images
-            print(f'pre-transform: {video.shape}')
-            video = self.transforms(video)
+            frames = self.transforms(frames)
         
-        print(f'post-transform: {video.shape}')
-
-        return video, video_cls
+        #return path_to_video, self.current_video, video_cls
+        return frames, video_cls
 
 class SpatioTemporalDataset(VideoDataset):
     def __init__(
@@ -135,34 +131,47 @@ class SpatioTemporalDataset(VideoDataset):
         return sampled_video, label
 
 if __name__ == '__main__':
-    import torchvision.transforms as T
-    import utils as U
-
-    pipeline = T.Compose([
-        T.RandomResizedCrop((112, 112)),
-        T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
-
-    dataset = SpatioTemporalDataset(
-        '/mnt/d/serao/archive/Real Life Violence Dataset',
-        transforms=pipeline,
-        num_clips=16
-    )
-
-    print(f'Dataset size: {len(dataset)}')
-
-    train_set, val_set = U.stratified_random_split(dataset, (0.7, 0.3), dataset.targets)
-
-    print(f'Train size: {len(train_set)}')
-    print(f'Train type: {train_set}')
-    print(f'Validation size: {len(val_set)}')
-    print(f'Validation type: {val_set}')
+    # import torchvision.transforms as T
+    # import utils as U
+ 
+    # pipeline = T.Compose([
+    #     T.RandomResizedCrop((112, 112)),
+    #     T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+ 
+    # dataset = SpatioTemporalDataset(
+    #     '/mnt/d/serao/archive/Real Life Violence Dataset',
+    #     transforms=pipeline,
+    #     num_clips=16
+    # )
+ 
+    # print(f'Dataset size: {len(dataset)}')
+ 
+    # train_set, val_set = U.stratified_random_split(dataset, (0.7, 0.3), dataset.targets)
+ 
+    # print(f'Train size: {len(train_set)}')
+    # print(f'Train type: {train_set}')
+    # print(f'Validation size: {len(val_set)}')
+    # print(f'Validation type: {val_set}')
 
     # dataloader returns a batch
     # we need to extract the videoclip
-    itr_dataset = DataLoader(dataset)
+    # itr_dataset = DataLoader(dataset)
 
-    video, cls = next(iter(itr_dataset))
-    print(f'Video shape: {video.shape}')
-    print(f'Video dtype: {video.dtype}')
-    print(f'Video class: {cls}')
+    # video, cls = next(iter(itr_dataset))
+    # print(f'Video shape: {video.shape}')
+    # print(f'Video dtype: {video.dtype}')
+    # print(f'Video class: {cls}')
     
+    from tqdm import tqdm
+
+    def dataset_index(dataset):
+        dataset_itr = iter(dataset)
+
+        with open('./train_index.txt', 'w') as f:
+            for path, video, label in tqdm(dataset_itr):
+                #print(f'Path {path[0]}, Video {video.shape[1]}, Label {label.item()}')
+                f.write(path[0] + ' ' + str(video.shape[1]) + ' ' + str(label.item()) + '\n')
+    
+    video_dataset = VideoDataset('/mnt/d/serao/fight_detection')
+    dataset = DataLoader(video_dataset, num_workers=0)
+    dataset_index(dataset)
