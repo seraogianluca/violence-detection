@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from typing import Optional
 
-from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 from torch.utils.data.dataloader import DataLoader
 from data.video import SpatioTemporalDataset
 from data.utils import stratified_random_split
@@ -24,9 +24,7 @@ class ViolenceDetection(pl.LightningModule):
         self.valid_accuracy = torchmetrics.Accuracy()
     
     def forward(self, x):
-        x = torch.permute(x, (0,2,1,3,4))
-        out = self.model(x)
-        return out
+        return torch.sigmoid(self.model(torch.permute(x, (0,2,1,3,4))))
     
     def training_step(self, batch, batch_idx):
         # B x T x C x H x W
@@ -63,15 +61,29 @@ class ViolenceDetection(pl.LightningModule):
         self.log('val_acc', epoch_acc, prog_bar=True)
     
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min')
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min')
         return {
-            "optimizer": optimizer,
+            "optimizer": self.optimizer,
             "lr_scheduler": {
-                "scheduler": lr_scheduler,
+                "scheduler": self.lr_scheduler,
+                "interval": "epoch",
+                "frequency": 1,
                 "monitor": "val_loss",
             },
         }
+    
+    def configure_callbacks(self):
+        early_stop = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=5, verbose=False, mode="max")
+
+        checkpoint = ModelCheckpoint(
+                dirpath='./',
+                filename='{epoch}-{train_loss:.3f}-{train_acc:.3f}-{val_loss:.3f}-{val_acc:.3f}',
+                monitor="val_acc",
+                mode='max')
+
+        lr_monitor = LearningRateMonitor(logging_interval='epoch', log_momentum=True)
+        return [early_stop, lr_monitor, checkpoint]
 
 class ViolenceDataset(pl.LightningDataModule):
     def __init__(self, data_dir: str = 'path/to/dir', batch_size: int = 1, num_clips: int = 16):
@@ -105,11 +117,7 @@ class ViolenceDataset(pl.LightningDataModule):
 
 if __name__ == '__main__':
     data = ViolenceDataset('/mnt/d/serao/fight_detection', num_clips=8, batch_size=1)
-
     model = ViolenceDetection()
 
-    es = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=3, verbose=False, mode="max")
-    lr_monitor = LearningRateMonitor(logging_interval='epoch', log_momentum=True)
-
-    trainer = pl.Trainer(callbacks=[es, lr_monitor], gpus=1, max_epochs=60, num_sanity_val_steps=0)
+    trainer = pl.Trainer(gpus=1, max_epochs=60, num_sanity_val_steps=0)
     trainer.fit(model, data)
