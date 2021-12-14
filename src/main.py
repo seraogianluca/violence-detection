@@ -34,13 +34,14 @@ class ViolenceDetection(pl.LightningModule):
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
         self.train_accuracy(y_hat.squeeze(0), y)
+        self.log('train_loss', loss, prog_bar=True)
         return loss
     
     def training_epoch_end(self, outputs):
         train_loss = torch.tensor([dict["loss"] for dict in outputs]).mean()
         epoch_acc = self.train_accuracy.compute()
         self.train_accuracy.reset()
-        self.log('train_loss', train_loss, prog_bar=True)
+        # self.log('train_loss', train_loss, prog_bar=True)
         self.log('train_acc', epoch_acc, prog_bar=True)
     
     def validation_step(self, batch, batch_idx):
@@ -51,13 +52,14 @@ class ViolenceDetection(pl.LightningModule):
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
         self.valid_accuracy(y_hat.squeeze(0), y)
+        self.log('val_loss', loss, prog_bar=True)
         return loss
     
     def validation_epoch_end(self, outputs):
         val_loss = torch.tensor(outputs).mean()
         epoch_acc = self.valid_accuracy.compute()
         self.valid_accuracy.reset()
-        self.log('val_loss', val_loss, prog_bar=True)
+        # self.log('val_loss', val_loss, prog_bar=True)
         self.log('val_acc', epoch_acc, prog_bar=True)
     
     def configure_optimizers(self):
@@ -116,7 +118,8 @@ class ViolenceDataset(pl.LightningDataModule):
         return DataLoader(self.val, batch_size=self.batch_size, shuffle=False, num_workers=8)
 
 if __name__ == '__main__':
-    data = ViolenceDataset('/mnt/d/serao/fight_detection', num_clips=8, batch_size=1)
+    #  fight_detection
+    data = ViolenceDataset('/mnt/d/serao/real_life_violence', num_clips=16, batch_size=1)
     model = ViolenceDetection()
 
     trainer = pl.Trainer(gpus=1, max_epochs=60, num_sanity_val_steps=0)
