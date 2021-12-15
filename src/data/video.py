@@ -39,6 +39,10 @@ class SpatioTemporalDataset(VisionDataset):
         self.num_clips = num_clips
         self.train = train
     
+    def targets(self):
+        targets = [video[1] for video in self.videos_index]
+        return targets
+
     def set_transforms(self, transforms):
         self.transforms = transforms
     
