@@ -17,6 +17,7 @@ from torchvision.models.video import r3d_18
 class ViolenceDetection(pl.LightningModule):
     def __init__(self):
         super().__init__()
+
         self.model = r3d_18(pretrained=True)
         self.model.fc = nn.Linear(512, 1)
         self.criterion = nn.BCELoss()
@@ -24,46 +25,50 @@ class ViolenceDetection(pl.LightningModule):
         self.valid_accuracy = torchmetrics.Accuracy()
     
     def forward(self, x):
-        return torch.sigmoid(self.model(torch.permute(x, (0,2,1,3,4))))
+        out = self.model(torch.permute(x, (0,2,1,3,4)))
+        out = torch.sigmoid(out)
+        return out
     
     def training_step(self, batch, batch_idx):
         # B x T x C x H x W
         x, y = batch
         y_hat = self(x)
-        loss = self.criterion(y_hat.squeeze(0), y.float())
+        y_hat = y_hat.view(-1)
+        loss = self.criterion(y_hat, y.float())
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
-        self.train_accuracy(y_hat.squeeze(0), y)
-        self.log('train_loss', loss, prog_bar=True)
+        self.train_accuracy(y_hat, y)
+        # self.log('train_loss', loss, prog_bar=True)
         return loss
     
     def training_epoch_end(self, outputs):
         train_loss = torch.tensor([dict["loss"] for dict in outputs]).mean()
         epoch_acc = self.train_accuracy.compute()
         self.train_accuracy.reset()
-        # self.log('train_loss', train_loss, prog_bar=True)
+        self.log('train_loss', train_loss, prog_bar=True)
         self.log('train_acc', epoch_acc, prog_bar=True)
     
     def validation_step(self, batch, batch_idx):
         # B x T x C x H x W
         x, y = batch
         y_hat = self(x)
-        loss = self.criterion(y_hat.squeeze(0), y.float())
+        y_hat = y_hat.view(-1)
+        loss = self.criterion(y_hat, y.float())
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
-        self.valid_accuracy(y_hat.squeeze(0), y)
-        self.log('val_loss', loss, prog_bar=True)
+        self.valid_accuracy(y_hat, y)
+        # self.log('val_loss', loss, prog_bar=True)
         return loss
     
     def validation_epoch_end(self, outputs):
         val_loss = torch.tensor(outputs).mean()
         epoch_acc = self.valid_accuracy.compute()
         self.valid_accuracy.reset()
-        # self.log('val_loss', val_loss, prog_bar=True)
+        self.log('val_loss', val_loss, prog_bar=True)
         self.log('val_acc', epoch_acc, prog_bar=True)
     
     def configure_optimizers(self):
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.0001)
+        self.optimizer = torch.optim.SGD(self.parameters(), lr=0.0001, momentum=0.9, weight_decay=0.0001)
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min')
         return {
             "optimizer": self.optimizer,
@@ -76,7 +81,7 @@ class ViolenceDetection(pl.LightningModule):
         }
     
     def configure_callbacks(self):
-        early_stop = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=5, verbose=False, mode="max")
+        early_stop = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=3, verbose=False, mode="max")
 
         checkpoint = ModelCheckpoint(
                 dirpath='./',
@@ -95,21 +100,22 @@ class ViolenceDataset(pl.LightningDataModule):
         self.num_clips = num_clips
     
     def setup(self, stage: Optional[str] = None):
-        violence_full = SpatioTemporalDataset(self.data_dir, num_clips=self.num_clips)
-        self.train, self.val = stratified_random_split(violence_full, (0.7,0.3), violence_full.targets())
+        if stage == 'fit' or stage is None:
+            violence_full = SpatioTemporalDataset(self.data_dir, num_clips=self.num_clips)
+            self.train, self.val = stratified_random_split(violence_full, (0.7,0.3), violence_full.targets())
 
-        train_pipeline = torchvision.transforms.Compose([
-            torchvision.transforms.CenterCrop(112),
-            torchvision.transforms.RandomHorizontalFlip(),
-            torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
-        self.train.dataset.transforms = train_pipeline
-        self.train.dataset.train = True
+            train_pipeline = torchvision.transforms.Compose([
+                torchvision.transforms.CenterCrop(112),
+                torchvision.transforms.RandomHorizontalFlip(),
+                torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
+            self.train.dataset.transforms = train_pipeline
+            self.train.dataset.train = True
 
-        valid_pipeline = torchvision.transforms.Compose([
-            torchvision.transforms.CenterCrop(112),
-            torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
-        self.val.dataset.transforms = valid_pipeline
-        self.val.dataset.train = False
+            valid_pipeline = torchvision.transforms.Compose([
+                torchvision.transforms.CenterCrop(112),
+                torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
+            self.val.dataset.transforms = valid_pipeline
+            self.val.dataset.train = False
     
     def train_dataloader(self):
         return DataLoader(self.train, batch_size=self.batch_size, shuffle=True, num_workers=8)
@@ -119,7 +125,7 @@ class ViolenceDataset(pl.LightningDataModule):
 
 if __name__ == '__main__':
     #  fight_detection
-    data = ViolenceDataset('/mnt/d/serao/real_life_violence', num_clips=16, batch_size=1)
+    data = ViolenceDataset('/mnt/d/serao/real_life_violence', num_clips=16, batch_size=5)
     model = ViolenceDetection()
 
     trainer = pl.Trainer(gpus=1, max_epochs=60, num_sanity_val_steps=0)
