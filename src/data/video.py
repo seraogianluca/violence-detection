@@ -101,6 +101,9 @@ class SpatioTemporalDataset(VisionDataset):
             frames = self.transforms(frames)
 
         return frames, label
+    
+    def __len__(self):
+        return len(self.videos_index)
 
 if __name__ == '__main__':
     pass
