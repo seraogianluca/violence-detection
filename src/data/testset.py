@@ -16,6 +16,7 @@ class ViolenceTest(pl.LightningDataModule):
     
     def setup(self, stage):
         pipeline = torchvision.transforms.Compose([
+            torchvision.transforms.Resize(112),
             torchvision.transforms.CenterCrop(112),
             torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
         self.test = SpatioTemporalDataset(self.data_dir, num_clips=self.num_clips, transforms=pipeline, train=False)

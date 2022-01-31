@@ -20,6 +20,7 @@ class ViolenceDataset(pl.LightningDataModule):
             self.train, self.val = stratified_random_split(violence_full, (0.7,0.3), violence_full.targets())
 
             train_pipeline = torchvision.transforms.Compose([
+                torchvision.transforms.Resize(112),
                 torchvision.transforms.CenterCrop(112),
                 torchvision.transforms.RandomHorizontalFlip(),
                 torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
@@ -27,6 +28,7 @@ class ViolenceDataset(pl.LightningDataModule):
             self.train.dataset.train = True
 
             valid_pipeline = torchvision.transforms.Compose([
+                torchvision.transforms.Resize(112),
                 torchvision.transforms.CenterCrop(112),
                 torchvision.transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))])
             self.val.dataset.transforms = valid_pipeline
