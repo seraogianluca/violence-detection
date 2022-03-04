@@ -47,6 +47,22 @@ class SpatioTemporalDataset(VisionDataset):
     
     def set_train(self, train):
         self.train = train
+    
+    def _sample_frames_uniform(
+        self, 
+        num_frames: int) -> List[int]:
+
+        if self.num_clips > num_frames:
+            raise ValueError('num_clips should be lower than frames in video')
+
+        # uniform sampling without duplicates
+        offsets = []
+        while len(offsets) != self.num_clips:
+            offset = np.random.randint(num_frames, size=1)
+            if offset[0] not in offsets:
+                offsets.append(offset[0])
+        
+        return np.array(sorted(offsets))
 
     def _sample_frames(
         self, 
@@ -79,11 +95,11 @@ class SpatioTemporalDataset(VisionDataset):
         self, 
         index: int) -> Tuple[Tensor, int]:
         path_to_video, label = self.videos_index[index]
-
         reader = VideoReader(path_to_video, ctx=cpu(0))
 
         offsets = []
         if self.train:
+            # offsets = self._sample_frames_uniform(len(reader))
             offsets = self._sample_frames(len(reader))
         else:
             offsets = self._validation_frames(len(reader))

@@ -21,7 +21,7 @@ class ViolenceTest(pl.LightningDataModule):
         self.test = SpatioTemporalDataset(self.data_dir, num_clips=self.num_clips, transforms=pipeline, train=False)
     
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, shuffle=False, num_workers=8)
+        return DataLoader(self.test, batch_size=self.batch_size, shuffle=False, num_workers=1)
 
 class ViolenceTestOF(pl.LightningDataModule):
     def __init__(self, data_dir: str = 'path/to/dir', batch_size: int = 1, num_clips: int = 16):
@@ -34,4 +34,4 @@ class ViolenceTestOF(pl.LightningDataModule):
         self.test =  OpticalFlowDataset(self.data_dir, num_clips=self.num_clips, transforms=None, train=False, size=112)
     
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, shuffle=False, num_workers=8)
+        return DataLoader(self.test, batch_size=self.batch_size, shuffle=False, num_workers=1)

@@ -17,7 +17,7 @@ class ViolenceDataset(pl.LightningDataModule):
     def setup(self, stage):
         if stage == 'fit' or stage is None:
             violence_full = SpatioTemporalDataset(self.data_dir, num_clips=self.num_clips)
-            self.train, self.val = stratified_random_split(violence_full, (0.7,0.3), violence_full.targets())
+            self.train, self.val = stratified_random_split(violence_full, (0.8,0.2), violence_full.targets())
 
             train_pipeline = torchvision.transforms.Compose([
                 torchvision.transforms.Resize(112),
@@ -50,7 +50,7 @@ class ViolenceDatasetOF(pl.LightningDataModule):
     def setup(self, stage):
         if stage == 'fit' or stage is None:
             violence_full = OpticalFlowDataset(self.data_dir, num_clips=self.num_clips, size=112)
-            self.train, self.val = stratified_random_split(violence_full, (0.7,0.3), violence_full.targets())
+            self.train, self.val = stratified_random_split(violence_full, (0.8,0.2), violence_full.targets())
 
             train_pipeline = torchvision.transforms.Compose([torchvision.transforms.RandomHorizontalFlip()])
             self.train.dataset.transforms = train_pipeline

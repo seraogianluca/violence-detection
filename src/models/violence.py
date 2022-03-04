@@ -4,7 +4,7 @@ import torch.nn as nn
 import pytorch_lightning as pl
 
 from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
-from torchvision.models.video import r3d_18
+from torchvision.models.video import r3d_18, r2plus1d_18
 
 
 class ViolenceDetection(pl.LightningModule):
@@ -12,6 +12,7 @@ class ViolenceDetection(pl.LightningModule):
         super().__init__()
 
         self.model = r3d_18(pretrained=True)
+        # self.model = r2plus1d_18(pretrained=True)
         self.model.fc = nn.Linear(512, 1)
         self.criterion = nn.BCELoss()
         self.train_accuracy = torchmetrics.Accuracy()
@@ -72,6 +73,12 @@ class ViolenceDetection(pl.LightningModule):
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
         self.valid_accuracy(y_hat, y)
+
+        # with open('/home/serao/violence_detection/violence-detection/log/predictions.csv', 'a') as f:
+        #     tensor = y_hat.cpu()
+        #     tensor = tensor.numpy()
+        #     for i in range(tensor.size):
+        #         f.write(video[0] + ',' + str(y.cpu().numpy()[i]) + ',' + str(int(tensor[i])) + '\n')
  
         return loss
     
@@ -98,7 +105,7 @@ class ViolenceDetection(pl.LightningModule):
         }
     
     def configure_callbacks(self):
-        early_stop = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=8, verbose=False, mode="max")
+        early_stop = EarlyStopping(monitor="val_acc", min_delta=0.001, patience=15, verbose=False, mode="max")
 
         checkpoint = ModelCheckpoint(
                 dirpath=self.save_dir,
