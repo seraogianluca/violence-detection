@@ -66,19 +66,13 @@ class ViolenceDetection(pl.LightningModule):
     
     def test_step(self, batch, batch_idx):
         # B x T x C x H x W
-        video, x, y = batch
+        x, y = batch
         y_hat = self(x)
         y_hat = y_hat.view(-1)
         loss = self.criterion(y_hat, y.float())
         threshold = torch.tensor([0.5]).type_as(y_hat)
         y_hat = (y_hat>threshold).float()*1
         self.valid_accuracy(y_hat, y)
-
-        with open('/home/serao/violence_detection/violence-detection/log/predictions.csv', 'a') as f:
-            tensor = y_hat.cpu()
-            tensor = tensor.numpy()
-            for i in range(tensor.size):
-                f.write(video[0] + ',' + str(y.cpu().numpy()[i]) + ',' + str(int(tensor[i])) + '\n')
  
         return loss
     
