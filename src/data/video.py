@@ -117,7 +117,7 @@ class SpatioTemporalDataset(VisionDataset):
             # consider the entire video as batch of images
             frames = self.transforms(frames)
 
-        return frames, label
+        return path_to_video, frames, label
     
     def __len__(self):
         return len(self.videos_index)
